@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Sketchpad — Gelber248Drucker</title>
+  <link rel="stylesheet" href="../../styles.css">
+  <style>
+    .pad{border:1px solid rgba(0,0,0,0.08);height:60vh;background:white;touch-action:none}
+    .tools{display:flex;gap:.5rem;align-items:center;margin-bottom:.5rem}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Sketchpad</h1>
+    <div class="tools">
+      <label>Color: <input id="color" type="color" value="#000000"></label>
+      <label>Size: <input id="size" type="range" min="1" max="20" value="3"></label>
+      <button id="clear">Clear</button>
+      <a href="../../games.html">← Back</a>
+    </div>
+    <canvas id="canvas" class="pad"></canvas>
+  </div>
+  <script src="script.js"></script>
+  <script defer src="../../scripts.js"></script>
+</body>
+</html>

@@ -1,0 +1,3 @@
+:root{--asteroid:#8b6f4a;--ship:#4dd0e1;--bullet:#ffd54f}
+body{font-family:inherit}
+.game-wrap{background:linear-gradient(#001018,#00182a)}

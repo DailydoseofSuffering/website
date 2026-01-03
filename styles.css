@@ -1,0 +1,57 @@
+:root{
+  --bg:#ffffff;
+  --text:#0b0b0b;
+  --muted:#555;
+  --accent:#0066ff;
+  --card:#f7f9fc;
+  --radius:10px;
+}
+[data-theme="dark"]{
+  --bg:#0b0d11;
+  --text:#e6eef8;
+  --muted:#9aa6b2;
+  --accent:#64a0ff;
+  --card:#0f1317;
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+  background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased;
+}
+.container{max-width:1000px;margin:0 auto;padding:2rem}
+.header-inner{display:flex;align-items:center;gap:1rem;justify-content:space-between}
+.logo{font-weight:700;text-decoration:none;color:var(--text)}
+.nav{display:flex;gap:1rem}
+.nav a{color:var(--muted);text-decoration:none}
+.nav a:hover{color:var(--text)}
+.header-actions{display:flex;gap:.5rem;align-items:center}
+.menu-toggle{display:none;background:transparent;border:0;font-size:1.25rem}
+#themeToggle{background:transparent;border:0;font-size:1.1rem}
+
+.hero{padding-top:3rem;padding-bottom:3rem}
+.hero .lead{font-size:1.125rem;color:var(--muted)}
+.meta{color:var(--muted);font-size:.9rem}
+
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-top:1rem}
+.card{background:var(--card);padding:1rem;border-radius:var(--radius);box-shadow:0 6px 18px rgba(0,0,0,0.04)}
+.tags{color:var(--muted);font-size:.85rem;margin-top:.5rem}
+.btn{display:inline-block;margin-top:0.75rem;padding:.5rem .75rem;background:var(--accent);color:white;border-radius:6px;text-decoration:none}
+
+.posts{list-style:none;padding:0;margin:0;display:grid;gap:1rem}
+.excerpt{color:var(--muted)}
+
+.contact{padding-top:2rem;padding-bottom:3rem}
+
+.site-footer{border-top:1px solid rgba(0,0,0,0.06);padding:1rem 0;margin-top:2rem}
+
+@media (max-width:900px){
+  .grid{grid-template-columns:repeat(2,1fr)}
+}
+@media (max-width:640px){
+  .grid{grid-template-columns:1fr}
+  .nav{display:none;position:absolute;top:64px;right:0;background:var(--bg);flex-direction:column;padding:1rem;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.08)}
+  .nav.open{display:flex}
+  .menu-toggle{display:inline-block}
+}
