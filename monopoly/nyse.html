@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New York Stock Exchange | Monopoly Stock System</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0f172a;
+            --card: #111827;
+            --muted: #cbd5e1;
+            --accent: #22d3ee;
+            --success: #34d399;
+            --danger: #f87171;
+            --border: #1f2937;
+            --shadow: 0 10px 40px rgba(0,0,0,0.35);
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+            background: radial-gradient(120% 120% at 20% 20%, rgba(34,211,238,0.08), transparent 40%),
+                        radial-gradient(120% 120% at 80% 0%, rgba(52,211,153,0.08), transparent 45%),
+                        #0b1224;
+            color: #e5e7eb;
+            min-height: 100vh;
+            padding: 32px 20px 48px;
+        }
+        .page { max-width: 1100px; margin: 0 auto; }
+        header { display: grid; gap: 12px; margin-bottom: 24px; }
+        h1 { margin: 0; font-size: 30px; letter-spacing: -0.02em; }
+        .lead { margin: 0; color: var(--muted); line-height: 1.5; }
+        .controls { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
+        button {
+            border: none;
+            border-radius: 12px;
+            padding: 12px 18px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            color: #0b1224;
+            background: var(--accent);
+            box-shadow: var(--shadow);
+            transition: transform 120ms ease, box-shadow 120ms ease, filter 120ms ease;
+        }
+        button:hover { transform: translateY(-1px); filter: brightness(1.05); }
+        button:active { transform: translateY(0); filter: brightness(0.97); }
+        .secondary { background: #1f2937; color: #e5e7eb; box-shadow: none; border: 1px solid var(--border); }
+        .nav { display: flex; gap: 10px; flex-wrap: wrap; font-size: 14px; }
+        .nav a { color: var(--muted); text-decoration: none; padding: 6px 10px; border-radius: 10px; border: 1px solid var(--border); background: #0f172a; }
+        .nav a:hover { color: #e5e7eb; border-color: #334155; }
+        .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 16px; box-shadow: var(--shadow); }
+        .card header { display: flex; justify-content: space-between; align-items: center; margin: 0 0 8px 0; }
+        .card h2 { margin: 0; font-size: 18px; }
+        .meta { color: var(--muted); font-size: 13px; }
+        table { width: 100%; border-collapse: collapse; color: #e5e7eb; }
+        th, td { text-align: left; padding: 8px 6px; font-size: 14px; }
+        th { color: var(--muted); font-weight: 600; }
+        tr + tr { border-top: 1px solid var(--border); }
+        .pill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 999px; background: #1f2937; color: #e5e7eb; font-weight: 600; letter-spacing: -0.01em; box-shadow: inset 0 0 0 1px var(--border); }
+        .swatch { width: 14px; height: 14px; border-radius: 50%; border: 1px solid #0b1224; box-shadow: 0 0 0 1px rgba(0,0,0,0.35); }
+        .price { font-variant-numeric: tabular-nums; }
+        .delta { font-variant-numeric: tabular-nums; font-weight: 600; }
+        .delta.positive { color: var(--success); }
+        .delta.negative { color: var(--danger); }
+        tr.highlight { animation: highlight-flash 0.8s ease-out; }
+        @keyframes highlight-flash {
+            0% { background: rgba(34, 211, 238, 0.3); }
+            100% { background: transparent; }
+        }
+        .footer { margin-top: 16px; color: var(--muted); font-size: 13px; }
+        @media (max-width: 600px) { body { padding: 24px 16px; } }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <header>
+            <div class="nav">
+                <a href="index.html">All Exchanges</a>
+                <a href="nyse.html" style="border-color:#22d3ee; color:#e5e7eb;">NYSE</a>
+                <a href="fse.html">FSE</a>
+                <a href="sse.html">SSE</a>
+            </div>
+            <h1>New York Stock Exchange</h1>
+            <p class="lead">Track Monopoly property prices for NYSE only. Roll to apply random ±10% changes. Data stays in your browser.</p>
+            <div class="controls">
+                <button id="roll">Roll NYSE Prices</button>
+                <button id="timedMode" class="secondary">Start Timed Mode</button>
+                <button id="reset" class="secondary">Reset NYSE Prices</button>
+            </div>
+        </header>
+
+        <section id="exchange" class="card"></section>
+
+        <div class="footer">Prices are synced globally across all sessions via Firebase. Changes appear in real-time for all users.</div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getFirestore, doc, getDoc, setDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+        import { firebaseConfig, FIRESTORE_DOC, STORAGE_KEY } from './firebase-config.js';
+
+        // Initialize Firebase
+        let app, db;
+        let useLocalStorage = false;
+        try {
+            app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+        } catch (error) {
+            console.warn('Firebase initialization failed. Falling back to localStorage:', error);
+            useLocalStorage = true;
+            const footer = document.querySelector('.footer');
+            if (footer) {
+                footer.innerHTML = '<strong>⚠️ Firebase not configured.</strong> Data is stored locally. <a href="https://github.com/DailydoseofSuffering/monopoly#firebase-setup" style="color: var(--accent);">See setup instructions</a>';
+            }
+        }
+
+        const exchangeName = 'New York Stock Exchange';
+
+        const properties = [
+            { name: 'Mediterranean Avenue', color: '#5a2a00', base: 60 },
+            { name: 'Baltic Avenue', color: '#5a2a00', base: 60 },
+            { name: 'Oriental Avenue', color: '#5cbef5', base: 100 },
+            { name: 'Vermont Avenue', color: '#5cbef5', base: 100 },
+            { name: 'Connecticut Avenue', color: '#5cbef5', base: 120 },
+            { name: 'St. Charles Place', color: '#ff6fb3', base: 140 },
+            { name: 'States Avenue', color: '#ff6fb3', base: 140 },
+            { name: 'Virginia Avenue', color: '#ff6fb3', base: 160 },
+            { name: 'St. James Place', color: '#f59e0b', base: 180 },
+            { name: 'Tennessee Avenue', color: '#f59e0b', base: 180 },
+            { name: 'New York Avenue', color: '#f59e0b', base: 200 },
+            { name: 'Kentucky Avenue', color: '#ef4444', base: 220 },
+            { name: 'Indiana Avenue', color: '#ef4444', base: 220 },
+            { name: 'Illinois Avenue', color: '#ef4444', base: 240 },
+            { name: 'Atlantic Avenue', color: '#facc15', base: 260 },
+            { name: 'Ventnor Avenue', color: '#facc15', base: 260 },
+            { name: 'Marvin Gardens', color: '#facc15', base: 260 },
+            { name: 'Pacific Avenue', color: '#16a34a', base: 300 },
+            { name: 'North Carolina Avenue', color: '#16a34a', base: 300 },
+            { name: 'Pennsylvania Avenue', color: '#16a34a', base: 320 },
+            { name: 'Park Place', color: '#1f7aff', base: 350 },
+            { name: 'Boardwalk', color: '#1f7aff', base: 400 },
+            { name: 'Reading Railroad', color: '#6b7280', base: 200 },
+            { name: 'Pennsylvania Railroad', color: '#6b7280', base: 200 },
+            { name: 'B. & O. Railroad', color: '#6b7280', base: 200 },
+            { name: 'Short Line', color: '#6b7280', base: 200 },
+            { name: 'Electric Company', color: '#a855f7', base: 150 },
+            { name: 'Water Works', color: '#0ea5e9', base: 150 }
+        ];
+
+        const defaultState = () => {
+            const exchangesState = {};
+            const exchanges = ['New York Stock Exchange', 'Frankfurt Stock Exchange', 'Shanghai Stock Exchange'];
+            exchanges.forEach(ex => {
+                exchangesState[ex] = properties.reduce((acc, p) => {
+                    acc[p.name] = { price: p.base, lastChange: 0 };
+                    return acc;
+                }, {});
+            });
+            return exchangesState;
+        };
+
+        const loadState = async () => {
+            if (useLocalStorage) {
+                try {
+                    const raw = localStorage.getItem(STORAGE_KEY);
+                    if (!raw) return defaultState();
+                    const parsed = JSON.parse(raw);
+                    return parsed || defaultState();
+                } catch (err) {
+                    console.error('Failed to load state from localStorage', err);
+                    return defaultState();
+                }
+            } else {
+                try {
+                    const docRef = doc(db, 'monopoly-state', FIRESTORE_DOC);
+                    const docSnap = await getDoc(docRef);
+                    if (docSnap.exists()) {
+                        return docSnap.data().state || defaultState();
+                    } else {
+                        const initial = defaultState();
+                        await setDoc(docRef, { state: initial, updatedAt: new Date() });
+                        return initial;
+                    }
+                } catch (err) {
+                    console.error('Failed to load state from Firestore', err);
+                    return defaultState();
+                }
+            }
+        };
+
+        const saveState = async (state) => {
+            if (useLocalStorage) {
+                try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+                catch (err) { console.error('Failed to save state to localStorage', err); }
+            } else {
+                try {
+                    const docRef = doc(db, 'monopoly-state', FIRESTORE_DOC);
+                    await setDoc(docRef, { state: state, updatedAt: new Date() });
+                } catch (err) {
+                    console.error('Failed to save state to Firestore', err);
+                }
+            }
+        };
+
+        const setupRealtimeListener = () => {
+            if (!useLocalStorage && db) {
+                const docRef = doc(db, 'monopoly-state', FIRESTORE_DOC);
+                onSnapshot(docRef, (docSnap) => {
+                    if (docSnap.exists()) {
+                        const newState = docSnap.data().state;
+                        if (newState && JSON.stringify(newState) !== JSON.stringify(state)) {
+                            state = newState;
+                            render();
+                        }
+                    }
+                }, (error) => {
+                    console.error('Error listening to Firestore updates:', error);
+                });
+            }
+        };
+
+        const formatMoney = (value) => `$${value.toLocaleString('en-US')}`;
+
+        let state = defaultState();
+
+        const roll = async () => {
+            const next = JSON.parse(JSON.stringify(state));
+            properties.forEach(prop => {
+                const current = next[exchangeName][prop.name].price;
+                const deltaPct = (Math.random() * 0.2) - 0.1; // -10% to +10%
+                const candidate = Math.max(1, Math.round(current * (1 + deltaPct)));
+                const delta = candidate - current;
+                next[exchangeName][prop.name] = { price: candidate, lastChange: delta };
+            });
+            state = next;
+            await saveState(state);
+            render();
+        };
+
+        const reset = async () => {
+            const next = JSON.parse(JSON.stringify(state));
+            properties.forEach(prop => {
+                next[exchangeName][prop.name] = { price: prop.base, lastChange: 0 };
+            });
+            state = next;
+            await saveState(state);
+            render();
+        };
+
+        const render = () => {
+            const container = document.getElementById('exchange');
+            container.innerHTML = '';
+
+            const header = document.createElement('header');
+            const title = document.createElement('h2');
+            title.textContent = exchangeName;
+            const meta = document.createElement('div');
+            meta.className = 'meta';
+            meta.textContent = 'Randomized ±10% per roll';
+            header.appendChild(title);
+            header.appendChild(meta);
+
+            const table = document.createElement('table');
+            const thead = document.createElement('thead');
+            thead.innerHTML = '<tr><th>Property</th><th>Price</th><th>Last change</th></tr>';
+            table.appendChild(thead);
+
+            const tbody = document.createElement('tbody');
+            properties.forEach(prop => {
+                const row = document.createElement('tr');
+
+                const nameCell = document.createElement('td');
+                const pill = document.createElement('span');
+                pill.className = 'pill';
+                const swatch = document.createElement('span');
+                swatch.className = 'swatch';
+                swatch.style.background = prop.color;
+                pill.appendChild(swatch);
+                const text = document.createElement('span');
+                text.textContent = prop.name;
+                pill.appendChild(text);
+                nameCell.appendChild(pill);
+
+                const priceCell = document.createElement('td');
+                priceCell.className = 'price';
+                priceCell.textContent = formatMoney(state[exchangeName][prop.name].price);
+
+                const deltaCell = document.createElement('td');
+                const delta = state[exchangeName][prop.name].lastChange;
+                const basePrice = state[exchangeName][prop.name].price - delta;
+                const deltaPct = basePrice === 0 ? 0 : (delta / basePrice) * 100;
+                const deltaMoney = `${delta > 0 ? '+' : ''}${formatMoney(Math.abs(delta))}`;
+                const deltaPctText = `${deltaPct > 0 ? '+' : ''}${deltaPct.toFixed(1)}%`;
+                deltaCell.className = 'delta ' + (delta > 0 ? 'positive' : delta < 0 ? 'negative' : '');
+                deltaCell.textContent = delta === 0 ? '—' : `${deltaMoney} (${deltaPctText})`;
+
+                row.appendChild(nameCell);
+                row.appendChild(priceCell);
+                row.appendChild(deltaCell);
+                tbody.appendChild(row);
+            });
+
+            table.appendChild(tbody);
+            container.appendChild(header);
+            container.appendChild(table);
+        };
+        let timedModeActive = false;
+        let timedModeInterval = null;
+
+        const changeRandomProperty = async () => {
+            const randomProperty = properties[Math.floor(Math.random() * properties.length)];
+            const currentPrice = state[exchangeName][randomProperty.name].price;
+            const deltaPct = (Math.random() * 0.2) - 0.1;
+            const candidate = Math.max(1, Math.round(currentPrice * (1 + deltaPct)));
+            const delta = candidate - currentPrice;
+            state[exchangeName][randomProperty.name] = { price: candidate, lastChange: delta };
+            await saveState(state);
+            render();
+            highlightProperty(randomProperty.name);
+        };
+
+        const highlightProperty = (propertyName) => {
+            const tbody = document.querySelector('table tbody');
+            if (tbody) {
+                const rows = tbody.querySelectorAll('tr');
+                const propertyIndex = properties.findIndex(p => p.name === propertyName);
+                if (propertyIndex >= 0 && rows[propertyIndex]) {
+                    rows[propertyIndex].classList.add('highlight');
+                    setTimeout(() => rows[propertyIndex].classList.remove('highlight'), 800);
+                }
+            }
+        };
+
+        const toggleTimedMode = () => {
+            const btn = document.getElementById('timedMode');
+            if (timedModeActive) {
+                clearInterval(timedModeInterval);
+                timedModeActive = false;
+                btn.textContent = 'Start Timed Mode';
+                btn.classList.add('secondary');
+            } else {
+                timedModeActive = true;
+                btn.textContent = 'Stop Timed Mode';
+                btn.classList.remove('secondary');
+                timedModeInterval = setInterval(changeRandomProperty, 3000);
+            }
+        };
+
+        document.getElementById('roll').addEventListener('click', roll);
+        document.getElementById('timedMode').addEventListener('click', toggleTimedMode);
+        document.getElementById('reset').addEventListener('click', reset);
+
+        // Initialize the app
+        (async () => {
+            state = await loadState();
+            render();
+            setupRealtimeListener();
+        })();
+    </script>
+</body>
+</html>
