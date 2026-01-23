@@ -1,6 +1,7 @@
 // Monopoly Showcase - Displays live properties with dynamic pricing
+console.log('monopoly-showcase.js loaded');
+
 const STORAGE_KEY = 'mssw-state-v1';
-const FIRESTORE_DOC = 'global-state';
 
 // All properties data
 const allProperties = [
@@ -42,68 +43,23 @@ function getRandomProperties(count = 6) {
 	return shuffled.slice(0, count);
 }
 
-// Create default state
-function createDefaultState() {
-	const exchangesState = {};
-	exchanges.forEach(ex => {
-		exchangesState[ex] = allProperties.reduce((acc, p) => {
-			acc[p.name] = { price: p.base, lastChange: 0 };
-			return acc;
-		}, {});
-	});
-	return exchangesState;
-}
-
 // Load state from localStorage
-async function loadState() {
+function loadState() {
 	try {
 		const raw = localStorage.getItem(STORAGE_KEY);
-		if (!raw) return createDefaultState();
+		if (!raw) return null;
 		const parsed = JSON.parse(raw);
-		return parsed || createDefaultState();
+		return parsed || null;
 	} catch (err) {
 		console.error('Failed to load state from localStorage', err);
-		return createDefaultState();
+		return null;
 	}
-}
-
-// Try to load from Firebase
-async function loadStateFromFirebase() {
-	try {
-		const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js');
-		const { getFirestore, doc, getDoc } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
-
-		// Load config from monopoly folder
-		const response = await fetch('monopoly/firebase-config.js');
-		const configText = await response.text();
-		// Extract config from the module
-		const configMatch = configText.match(/export const firebaseConfig = ({[\s\S]*?});/);
-		if (!configMatch) throw new Error('Could not parse firebase config');
-		
-		// Parse the config safely
-		const configStr = configMatch[1]
-			.replace(/\/\/.*$/gm, '') // Remove comments
-			.replace(/,\s*}/g, '}'); // Remove trailing commas
-		const firebaseConfig = JSON.parse(configStr);
-
-		const app = initializeApp(firebaseConfig);
-		const db = getFirestore(app);
-		const docRef = doc(db, 'monopoly-state', FIRESTORE_DOC);
-		const docSnap = await getDoc(docRef);
-		
-		if (docSnap.exists()) {
-			return docSnap.data().state || createDefaultState();
-		}
-	} catch (err) {
-		console.log('Firebase not available, using localStorage:', err.message);
-	}
-	
-	return await loadState();
 }
 
 // Render showcase
-async function renderShowcase() {
-	const state = await loadStateFromFirebase();
+function renderShowcase() {
+	console.log('renderShowcase called');
+	const state = loadState();
 	const container = document.getElementById('properties-container');
 	
 	if (!container) {
@@ -111,21 +67,54 @@ async function renderShowcase() {
 		return;
 	}
 	
+	console.log('State loaded:', state);
 	const selectedProperties = getRandomProperties(6);
+	console.log('Selected properties:', selectedProperties.length);
+	
+	if (!state) {
+		console.log('No state found, using default prices');
+		container.innerHTML = selectedProperties.map(prop => {
+			const propertyData = allProperties.find(p => p.name === prop.name);
+			if (!propertyData) return '';
+			
+			return `
+				<div class="property-card">
+					<div class="property-header">
+						<div class="property-swatch" style="background-color: ${propertyData.color}"></div>
+						<div>
+							<div class="property-name">${prop.name}</div>
+							<div class="property-exchange">Base: $${propertyData.base}</div>
+						</div>
+					</div>
+					<div class="property-prices">
+						${exchanges.map(ex => `
+							<div class="price-item">
+								<span class="price-label">${ex.split(' ')[0]}</span>
+								<span class="price-value">$${Math.round(prop.base)}</span>
+								<span class="price-change">→ 0%</span>
+							</div>
+						`).join('')}
+					</div>
+					<div style="margin-top: 0.75rem; font-size: 0.75rem; color: var(--muted); display: flex; justify-content: space-between;">
+						<span>Avg: $${Math.round(prop.base)}</span>
+						<span>Spread: $0</span>
+					</div>
+				</div>
+			`;
+		}).join('');
+		return;
+	}
 	
 	try {
 		container.innerHTML = selectedProperties.map(prop => {
 			const propertyData = allProperties.find(p => p.name === prop.name);
-			if (!propertyData) {
-				console.warn('Property not found:', prop.name);
-				return '';
-			}
+			if (!propertyData) return '';
 			
 			// Get prices from all exchanges
 			const prices = exchanges.map(ex => ({
 				exchange: ex,
-				price: state[ex]?.[prop.name]?.price || prop.base,
-				lastChange: state[ex]?.[prop.name]?.lastChange || 0
+				price: state[ex] && state[ex][prop.name] ? state[ex][prop.name].price : prop.base,
+				lastChange: state[ex] && state[ex][prop.name] ? state[ex][prop.name].lastChange : 0
 			}));
 			
 			const avgPrice = Math.round(prices.reduce((sum, p) => sum + p.price, 0) / prices.length);
@@ -143,7 +132,7 @@ async function renderShowcase() {
 						</div>
 					</div>
 					<div class="property-prices">
-						${prices.map((p, idx) => `
+						${prices.map(p => `
 							<div class="price-item">
 								<span class="price-label">${p.exchange.split(' ')[0]}</span>
 								<span class="price-value">$${Math.round(p.price)}</span>
@@ -167,34 +156,23 @@ async function renderShowcase() {
 	}
 }
 
-// Update prices with animation
-async function updatePrices() {
-	await renderShowcase();
-	
-	// Animate the updated cards
-	document.querySelectorAll('.price-item').forEach(el => {
-		el.classList.add('updated');
-		setTimeout(() => el.classList.remove('updated'), 600);
-	});
-}
-
 // Initialize showcase
-async function init() {
+function init() {
 	console.log('Initializing Monopoly showcase...');
 	try {
-		await renderShowcase();
+		renderShowcase();
 		console.log('Showcase initialized successfully');
 		
 		// Refresh showcase every 5 seconds
-		setInterval(async () => {
-			await updatePrices();
+		setInterval(() => {
+			renderShowcase();
 		}, 5000);
 		
 		// Also listen for storage changes (from monopoly page)
-		window.addEventListener('storage', async (e) => {
+		window.addEventListener('storage', (e) => {
 			if (e.key === STORAGE_KEY) {
 				console.log('Storage updated, refreshing showcase');
-				await updatePrices();
+				renderShowcase();
 			}
 		});
 	} catch (err) {
