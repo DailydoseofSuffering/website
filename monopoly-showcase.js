@@ -1,5 +1,5 @@
 // Monopoly Showcase - Displays live properties with dynamic pricing
-console.log('monopoly-showcase.js loaded');
+// console.log('monopoly-showcase.js loaded');
 
 const STORAGE_KEY = 'mssw-state-v1';
 
@@ -68,10 +68,10 @@ async function initializeFirebase() {
 
 		const app = initializeApp(firebaseConfig);
 		db = getFirestore(app);
-		console.log('Firebase initialized successfully');
+		//console.log('Firebase initialized successfully');
 		return true;
 	} catch (err) {
-		console.warn('Firebase initialization failed, using localStorage only:', err.message);
+		//console.warn('Firebase initialization failed, using localStorage only:', err.message);
 		useLocalStorageOnly = true;
 		return false;
 	}
@@ -87,23 +87,23 @@ async function loadState() {
 			
 			if (docSnap.exists()) {
 				const state = docSnap.data().state;
-				console.log('State loaded from Firebase');
+				//console.log('State loaded from Firebase');
 				return state;
 			}
 		}
 	} catch (err) {
-		console.warn('Failed to load from Firebase:', err.message);
+		//console.warn('Failed to load from Firebase:', err.message);
 	}
 	
 	// Fallback to localStorage
 	try {
 		const raw = localStorage.getItem(STORAGE_KEY);
 		if (raw) {
-			console.log('State loaded from localStorage');
+			//console.log('State loaded from localStorage');
 			return JSON.parse(raw);
 		}
 	} catch (err) {
-		console.error('Failed to load state from localStorage', err);
+		//console.error('Failed to load state from localStorage', err);
 	}
 	
 	return null;
@@ -111,7 +111,7 @@ async function loadState() {
 
 // Render showcase
 async function renderShowcase() {
-	console.log('renderShowcase called');
+	//console.log('renderShowcase called');
 	const state = await loadState();
 	const container = document.getElementById('properties-container');
 	
@@ -120,12 +120,12 @@ async function renderShowcase() {
 		return;
 	}
 	
-	console.log('State loaded:', state);
+	//console.log('State loaded:', state);
 	const selectedProperties = getRandomProperties(6);
-	console.log('Selected properties:', selectedProperties.length);
+	//console.log('Selected properties:', selectedProperties.length);
 	
 	if (!state) {
-		console.log('No state found, using default prices');
+		//console.log('No state found, using default prices');
 		container.innerHTML = selectedProperties.map(prop => {
 			const propertyData = allProperties.find(p => p.name === prop.name);
 			if (!propertyData) return '';
@@ -202,7 +202,7 @@ async function renderShowcase() {
 				</div>
 			`;
 		}).join('');
-		console.log('Rendered', selectedProperties.length, 'properties');
+		//console.log('Rendered', selectedProperties.length, 'properties');
 	} catch (err) {
 		console.error('Error rendering showcase:', err);
 		container.textContent = `Error loading showcase: ${err.message}`;
@@ -211,22 +211,22 @@ async function renderShowcase() {
 
 // Initialize showcase
 async function init() {
-	console.log('Initializing Monopoly showcase...');
+	//console.log('Initializing Monopoly showcase...');
 	try {
 		await initializeFirebase();
 		await renderShowcase();
-		console.log('Showcase initialized successfully');
+		//console.log('Showcase initialized successfully');
 		
 		// Refresh showcase every 3 seconds to stay in sync with Firebase
 		setInterval(async () => {
-			console.log('Refreshing showcase...');
+			//console.log('Refreshing showcase...');
 			await renderShowcase();
 		}, 3000);
 		
 		// Also listen for storage changes (from monopoly page)
 		window.addEventListener('storage', async (e) => {
 			if (e.key === STORAGE_KEY) {
-				console.log('Storage updated, refreshing showcase');
+				//console.log('Storage updated, refreshing showcase');
 				await renderShowcase();
 			}
 		});
