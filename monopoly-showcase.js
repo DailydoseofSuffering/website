@@ -106,52 +106,65 @@ async function renderShowcase() {
 	const state = await loadStateFromFirebase();
 	const container = document.getElementById('properties-container');
 	
-	if (!container) return;
+	if (!container) {
+		console.error('Container not found');
+		return;
+	}
 	
 	const selectedProperties = getRandomProperties(6);
 	
-	container.innerHTML = selectedProperties.map(prop => {
-		const propertyData = allProperties.find(p => p.name === prop.name);
-		
-		// Get prices from all exchanges
-		const prices = exchanges.map(ex => ({
-			exchange: ex,
-			price: state[ex]?.[prop.name]?.price || prop.base,
-			lastChange: state[ex]?.[prop.name]?.lastChange || 0
-		}));
-		
-		const avgPrice = Math.round(prices.reduce((sum, p) => sum + p.price, 0) / prices.length);
-		const minPrice = Math.min(...prices.map(p => p.price));
-		const maxPrice = Math.max(...prices.map(p => p.price));
-		const volatility = maxPrice - minPrice;
-		
-		return `
-			<div class="property-card">
-				<div class="property-header">
-					<div class="property-swatch" style="background-color: ${propertyData.color}"></div>
-					<div>
-						<div class="property-name">${prop.name}</div>
-						<div class="property-exchange">Base: $${propertyData.base}</div>
+	try {
+		container.innerHTML = selectedProperties.map(prop => {
+			const propertyData = allProperties.find(p => p.name === prop.name);
+			if (!propertyData) {
+				console.warn('Property not found:', prop.name);
+				return '';
+			}
+			
+			// Get prices from all exchanges
+			const prices = exchanges.map(ex => ({
+				exchange: ex,
+				price: state[ex]?.[prop.name]?.price || prop.base,
+				lastChange: state[ex]?.[prop.name]?.lastChange || 0
+			}));
+			
+			const avgPrice = Math.round(prices.reduce((sum, p) => sum + p.price, 0) / prices.length);
+			const minPrice = Math.min(...prices.map(p => p.price));
+			const maxPrice = Math.max(...prices.map(p => p.price));
+			const volatility = maxPrice - minPrice;
+			
+			return `
+				<div class="property-card">
+					<div class="property-header">
+						<div class="property-swatch" style="background-color: ${propertyData.color}"></div>
+						<div>
+							<div class="property-name">${prop.name}</div>
+							<div class="property-exchange">Base: $${propertyData.base}</div>
+						</div>
+					</div>
+					<div class="property-prices">
+						${prices.map((p, idx) => `
+							<div class="price-item">
+								<span class="price-label">${p.exchange.split(' ')[0]}</span>
+								<span class="price-value">$${Math.round(p.price)}</span>
+								<span class="price-change ${p.lastChange > 0 ? 'positive' : p.lastChange < 0 ? 'negative' : ''}">
+									${p.lastChange > 0 ? '↑' : p.lastChange < 0 ? '↓' : '→'} ${Math.abs(Math.round(p.lastChange * 10) / 10)}%
+								</span>
+							</div>
+						`).join('')}
+					</div>
+					<div style="margin-top: 0.75rem; font-size: 0.75rem; color: var(--muted); display: flex; justify-content: space-between;">
+						<span>Avg: $${avgPrice}</span>
+						<span>Spread: $${volatility}</span>
 					</div>
 				</div>
-				<div class="property-prices">
-					${prices.map((p, idx) => `
-						<div class="price-item">
-							<span class="price-label">${p.exchange.split(' ')[0]}</span>
-							<span class="price-value">$${Math.round(p.price)}</span>
-							<span class="price-change ${p.lastChange > 0 ? 'positive' : p.lastChange < 0 ? 'negative' : ''}">
-								${p.lastChange > 0 ? '↑' : p.lastChange < 0 ? '↓' : '→'} ${Math.abs(Math.round(p.lastChange * 10) / 10)}%
-							</span>
-						</div>
-					`).join('')}
-				</div>
-				<div style="margin-top: 0.75rem; font-size: 0.75rem; color: var(--muted); display: flex; justify-content: space-between;">
-					<span>Avg: $${avgPrice}</span>
-					<span>Spread: $${volatility}</span>
-				</div>
-			</div>
-		`;
-	}).join('');
+			`;
+		}).join('');
+		console.log('Rendered', selectedProperties.length, 'properties');
+	} catch (err) {
+		console.error('Error rendering showcase:', err);
+		container.textContent = `Error loading showcase: ${err.message}`;
+	}
 }
 
 // Update prices with animation
@@ -167,19 +180,26 @@ async function updatePrices() {
 
 // Initialize showcase
 async function init() {
-	await renderShowcase();
-	
-	// Refresh showcase every 5 seconds
-	setInterval(async () => {
-		await updatePrices();
-	}, 5000);
-	
-	// Also listen for storage changes (from monopoly page)
-	window.addEventListener('storage', async (e) => {
-		if (e.key === STORAGE_KEY) {
+	console.log('Initializing Monopoly showcase...');
+	try {
+		await renderShowcase();
+		console.log('Showcase initialized successfully');
+		
+		// Refresh showcase every 5 seconds
+		setInterval(async () => {
 			await updatePrices();
-		}
-	});
+		}, 5000);
+		
+		// Also listen for storage changes (from monopoly page)
+		window.addEventListener('storage', async (e) => {
+			if (e.key === STORAGE_KEY) {
+				console.log('Storage updated, refreshing showcase');
+				await updatePrices();
+			}
+		});
+	} catch (err) {
+		console.error('Failed to initialize showcase:', err);
+	}
 }
 
 // Start when DOM is ready
