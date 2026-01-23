@@ -35,7 +35,7 @@ const allProperties = [
 	{ name: 'Water Works', color: '#0ea5e9', base: 150 }
 ];
 
-const exchanges = ['New_York Stock Exchange', 'Frankfurt Stock Exchange', 'Shanghai Stock Exchange'];
+const exchanges = ['New York Stock Exchange', 'Frankfurt Stock Exchange', 'Shanghai Stock Exchange'];
 
 // Get random properties
 function getRandomProperties(count = 6) {
@@ -43,23 +43,76 @@ function getRandomProperties(count = 6) {
 	return shuffled.slice(0, count);
 }
 
-// Load state from localStorage
-function loadState() {
+// Load Firebase config and initialize
+let db = null;
+let useLocalStorageOnly = false;
+
+async function initializeFirebase() {
 	try {
-		const raw = localStorage.getItem(STORAGE_KEY);
-		if (!raw) return null;
-		const parsed = JSON.parse(raw);
-		return parsed || null;
+		// Import Firebase modules
+		const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js');
+		const { getFirestore } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+
+		// Fetch and parse Firebase config
+		const response = await fetch('monopoly/firebase-config.js');
+		const configText = await response.text();
+		
+		// Parse the config
+		const configMatch = configText.match(/export const firebaseConfig = ({[\s\S]*?});/);
+		if (!configMatch) throw new Error('Could not parse firebase config');
+		
+		const configStr = configMatch[1]
+			.replace(/\/\/.*$/gm, '')
+			.replace(/,\s*}/g, '}');
+		const firebaseConfig = JSON.parse(configStr);
+
+		const app = initializeApp(firebaseConfig);
+		db = getFirestore(app);
+		console.log('Firebase initialized successfully');
+		return true;
 	} catch (err) {
-		console.error('Failed to load state from localStorage', err);
-		return null;
+		console.warn('Firebase initialization failed, using localStorage only:', err.message);
+		useLocalStorageOnly = true;
+		return false;
 	}
 }
 
+// Load state from Firebase or localStorage
+async function loadState() {
+	try {
+		if (!useLocalStorageOnly && db) {
+			const { doc, getDoc } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+			const docRef = doc(db, 'monopoly-state', 'global-state');
+			const docSnap = await getDoc(docRef);
+			
+			if (docSnap.exists()) {
+				const state = docSnap.data().state;
+				console.log('State loaded from Firebase');
+				return state;
+			}
+		}
+	} catch (err) {
+		console.warn('Failed to load from Firebase:', err.message);
+	}
+	
+	// Fallback to localStorage
+	try {
+		const raw = localStorage.getItem(STORAGE_KEY);
+		if (raw) {
+			console.log('State loaded from localStorage');
+			return JSON.parse(raw);
+		}
+	} catch (err) {
+		console.error('Failed to load state from localStorage', err);
+	}
+	
+	return null;
+}
+
 // Render showcase
-function renderShowcase() {
+async function renderShowcase() {
 	console.log('renderShowcase called');
-	const state = loadState();
+	const state = await loadState();
 	const container = document.getElementById('properties-container');
 	
 	if (!container) {
@@ -157,22 +210,24 @@ function renderShowcase() {
 }
 
 // Initialize showcase
-function init() {
+async function init() {
 	console.log('Initializing Monopoly showcase...');
 	try {
-		renderShowcase();
+		await initializeFirebase();
+		await renderShowcase();
 		console.log('Showcase initialized successfully');
 		
-		// Refresh showcase every 5 seconds
-		setInterval(() => {
-			renderShowcase();
-		}, 5000);
+		// Refresh showcase every 3 seconds to stay in sync with Firebase
+		setInterval(async () => {
+			console.log('Refreshing showcase...');
+			await renderShowcase();
+		}, 3000);
 		
 		// Also listen for storage changes (from monopoly page)
-		window.addEventListener('storage', (e) => {
+		window.addEventListener('storage', async (e) => {
 			if (e.key === STORAGE_KEY) {
 				console.log('Storage updated, refreshing showcase');
-				renderShowcase();
+				await renderShowcase();
 			}
 		});
 	} catch (err) {
