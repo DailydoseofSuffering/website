@@ -20,11 +20,19 @@
 		}
 		.cookie-container {
 			display: flex;
+			flex-direction: column;
 			align-items: center;
 			justify-content: center;
 			width: 100%;
 			height: 100%;
+			gap: 16px;
 		}
+		.global-count {
+			font-size: clamp(12px, 2vw, 16px);
+			color: #9ca3af;
+			text-align: center;
+		}
+		.global-count.hidden { display: none; }
 		.cookie-image {
 			width: min(360px, 70vw);
 			height: auto;
@@ -53,11 +61,9 @@
 </head>
 <body>
 	<div class="cookie-container" id="cookieContainer">
-		<div id="startMessage" class="message">You have done well, have a cookie &lt;3</div>
-		<div id="doneMessage" class="message hidden">
-			<div id="personalCount"></div>
-			<div id="globalCount" style="font-size: 0.75em; color: var(--muted); margin-top: 8px;"></div>
-		</div>
+		<div id="startMessage" class="message">You have done well, have a coockie &lt;3</div>
+		<div id="doneMessage" class="message hidden"></div>
+		<div id="globalCount" class="global-count hidden"></div>
 		<img
 			id="cookieImage"
 			class="cookie-image hidden"
@@ -75,8 +81,6 @@
 		// Initialize Firebase
 		let app, db;
 		let useLocalStorage = false;
-		let globalCookieCount = 0;
-
 		try {
 			app = initializeApp(firebaseConfig);
 			db = getFirestore(app);
@@ -84,69 +88,6 @@
 			console.warn('Firebase initialization failed. Falling back to localStorage:', error);
 			useLocalStorage = true;
 		}
-
-		const STORAGE_KEY = 'cookie-personal-count';
-		const FIRESTORE_COLLECTION = 'cookie';
-		const FIRESTORE_DOC = 'cookie';
-
-		// Load personal count
-		const loadPersonalCount = () => {
-			const stored = localStorage.getItem(STORAGE_KEY);
-			return stored ? parseInt(stored) : 0;
-		};
-
-		// Save personal count
-		const savePersonalCount = (count) => {
-			localStorage.setItem(STORAGE_KEY, count.toString());
-		};
-
-		// Update global count in Firebase
-		const updateGlobalCount = async () => {
-			if (!useLocalStorage && db) {
-				try {
-					const docRef = doc(db, FIRESTORE_COLLECTION, FIRESTORE_DOC);
-					await setDoc(docRef, { 'cookie-total': increment(1) }, { merge: true });
-				} catch (err) {
-					console.error('Failed to update global count:', err);
-				}
-			}
-		};
-
-		// Listen to global count updates
-		const setupGlobalCountListener = () => {
-			if (!useLocalStorage && db) {
-				const docRef = doc(db, FIRESTORE_COLLECTION, FIRESTORE_DOC);
-				onSnapshot(docRef, (docSnap) => {
-					if (docSnap.exists()) {
-						globalCookieCount = docSnap.data()['cookie-total'] || 0;
-						updateDoneMessage();
-					}
-				}, (error) => {
-					console.error('Error listening to global count:', error);
-				});
-			}
-		};
-
-		// Initialize global count
-		const initGlobalCount = async () => {
-			if (!useLocalStorage && db) {
-				try {
-					const docRef = doc(db, FIRESTORE_COLLECTION, FIRESTORE_DOC);
-					const docSnap = await getDoc(docRef);
-					if (docSnap.exists()) {
-						globalCookieCount = docSnap.data()['cookie-total'] || 0;
-					} else {
-						await setDoc(docRef, { 'cookie-total': 0 });
-						globalCookieCount = 0;
-					}
-					setupGlobalCountListener();
-				} catch (err) {
-					console.error('Failed to initialize global count:', err);
-				}
-			}
-		};
-
-		initGlobalCount();
 
 		const stages = [
 			'coockie-4_4.png',
@@ -160,20 +101,78 @@
 		const container = document.getElementById('cookieContainer');
 		const startMessage = document.getElementById('startMessage');
 		const doneMessage = document.getElementById('doneMessage');
-		const personalCountEl = document.getElementById('personalCount');
 		const globalCountEl = document.getElementById('globalCount');
 		let index = 0;
 		let animating = false;
-		let cookieCount = loadPersonalCount();
+		let cookieCount = 0;
+		let globalTotal = 0;
 
-		const updateDoneMessage = () => {
-			personalCountEl.textContent = `You have had ${cookieCount} coockie`;
-			globalCountEl.textContent = `Global: ${globalCookieCount} cookies eaten`;
+		// Load global count from Firebase
+		const loadGlobalCount = async () => {
+			if (useLocalStorage) {
+				try {
+					globalTotal = parseInt(localStorage.getItem('cookie-global-total') || '0', 10);
+				} catch (e) {
+					globalTotal = 0;
+				}
+			} else {
+				try {
+					const docRef = doc(db, 'cookie', 'cookie');
+					const docSnap = await getDoc(docRef);
+					if (docSnap.exists()) {
+						globalTotal = docSnap.data()['cookie-total'] || 0;
+					} else {
+						await setDoc(docRef, { 'cookie-total': 0 });
+						globalTotal = 0;
+					}
+				} catch (e) {
+					console.error('Failed to load global count:', e);
+					globalTotal = 0;
+				}
+			}
+		};
+
+		// Increment global count in Firebase
+		const incrementGlobalCount = async () => {
+			if (useLocalStorage) {
+				globalTotal += 1;
+				localStorage.setItem('cookie-global-total', globalTotal.toString());
+			} else {
+				try {
+					const docRef = doc(db, 'cookie', 'cookie');
+					await setDoc(docRef, { 'cookie-total': increment(1) }, { merge: true });
+					globalTotal += 1;
+				} catch (e) {
+					console.error('Failed to increment global count:', e);
+				}
+			}
+		};
+
+		// Listen for real-time updates
+		const setupRealtimeListener = () => {
+			if (!useLocalStorage && db) {
+				const docRef = doc(db, 'cookie', 'cookie');
+				onSnapshot(docRef, (docSnap) => {
+					if (docSnap.exists()) {
+						globalTotal = docSnap.data()['cookie-total'] || 0;
+						updateGlobalCountDisplay();
+					}
+				}, (error) => {
+					console.error('Error listening to Firebase updates:', error);
+				});
+			}
+		};
+
+		const updateGlobalCountDisplay = () => {
+			if (!globalCountEl.classList.contains('hidden')) {
+				globalCountEl.textContent = `Global: ${globalTotal} coockies eaten worldwide`;
+			}
 		};
 
 		const showCookie = () => {
 			startMessage.classList.add('hidden');
 			doneMessage.classList.add('hidden');
+			globalCountEl.classList.add('hidden');
 			img.classList.remove('hidden');
 			img.setAttribute('aria-hidden', 'false');
 			setStage(index);
@@ -183,24 +182,26 @@
 			img.classList.add('hidden');
 			img.setAttribute('aria-hidden', 'true');
 			doneMessage.classList.add('hidden');
+			globalCountEl.classList.add('hidden');
 			startMessage.classList.remove('hidden');
 		};
 
-		const showDoneMessage = () => {
+		const showDoneMessage = async () => {
 			img.classList.add('hidden');
 			img.setAttribute('aria-hidden', 'true');
 			startMessage.classList.add('hidden');
-			updateDoneMessage();
+			doneMessage.textContent = `You have had ${cookieCount} coockie`;
 			doneMessage.classList.remove('hidden');
+			globalCountEl.textContent = `Global: ${globalTotal} coockies eaten worldwide`;
+			globalCountEl.classList.remove('hidden');
 		};
 
-		const setStage = (nextIndex) => {
+		const setStage = async (nextIndex) => {
 			index = nextIndex;
 			const src = stages[index];
 			if (!src) {
 				cookieCount += 1;
-				savePersonalCount(cookieCount);
-				updateGlobalCount();
+				await incrementGlobalCount();
 				showDoneMessage();
 				return;
 			}
@@ -233,7 +234,12 @@
 			showCookie();
 		});
 
-		showStartMessage();
+		// Initialize
+		(async () => {
+			await loadGlobalCount();
+			setupRealtimeListener();
+			showStartMessage();
+		})();
 	</script>
 </body>
 </html>
