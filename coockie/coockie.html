@@ -35,6 +35,15 @@
 		.cookie-image:active { transform: scale(0.98); }
 		.cookie-image.bite { animation: bite 180ms ease-in-out; }
 		.cookie-image.hidden { display: none; }
+		.message {
+			font-size: clamp(18px, 3vw, 28px);
+			font-weight: 600;
+			color: #e5e7eb;
+			text-align: center;
+			cursor: pointer;
+			user-select: none;
+		}
+		.message.hidden { display: none; }
 		@keyframes bite {
 			0% { transform: scale(1); }
 			50% { transform: scale(0.92) rotate(-2deg); }
@@ -44,9 +53,11 @@
 </head>
 <body>
 	<div class="cookie-container" id="cookieContainer">
+		<div id="startMessage" class="message">You have done well, have a coockie &lt;3</div>
+		<div id="doneMessage" class="message hidden"></div>
 		<img
 			id="cookieImage"
-			class="cookie-image"
+			class="cookie-image hidden"
 			src="coockie-4_4.png"
 			alt="Cookie"
 			aria-live="polite"
@@ -64,20 +75,43 @@
 
 		const img = document.getElementById('cookieImage');
 		const container = document.getElementById('cookieContainer');
+		const startMessage = document.getElementById('startMessage');
+		const doneMessage = document.getElementById('doneMessage');
 		let index = 0;
 		let animating = false;
+		let cookieCount = 0;
+
+		const showCookie = () => {
+			startMessage.classList.add('hidden');
+			doneMessage.classList.add('hidden');
+			img.classList.remove('hidden');
+			img.setAttribute('aria-hidden', 'false');
+			setStage(index);
+		};
+
+		const showStartMessage = () => {
+			img.classList.add('hidden');
+			img.setAttribute('aria-hidden', 'true');
+			doneMessage.classList.add('hidden');
+			startMessage.classList.remove('hidden');
+		};
+
+		const showDoneMessage = () => {
+			img.classList.add('hidden');
+			img.setAttribute('aria-hidden', 'true');
+			startMessage.classList.add('hidden');
+			doneMessage.textContent = `You have had ${cookieCount} coockie`;
+			doneMessage.classList.remove('hidden');
+		};
 
 		const setStage = (nextIndex) => {
 			index = nextIndex;
 			const src = stages[index];
 			if (!src) {
-				img.classList.add('hidden');
-				img.removeAttribute('src');
-				img.setAttribute('aria-hidden', 'true');
+				cookieCount += 1;
+				showDoneMessage();
 				return;
 			}
-			img.classList.remove('hidden');
-			img.setAttribute('aria-hidden', 'false');
 			img.src = src;
 		};
 
@@ -98,11 +132,16 @@
 		};
 
 		img.addEventListener('click', handleClick);
-		container.addEventListener('click', () => {
-			if (stages[index] === null) {
-				setStage(0);
-			}
+		startMessage.addEventListener('click', () => {
+			index = 0;
+			showCookie();
 		});
+		doneMessage.addEventListener('click', () => {
+			index = 0;
+			showCookie();
+		});
+
+		showStartMessage();
 	</script>
 </body>
 </html>
