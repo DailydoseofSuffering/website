@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Cookie</title>
+	<style>
+		* { box-sizing: border-box; }
+		body {
+			margin: 0;
+			font-family: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+			background: radial-gradient(120% 120% at 20% 20%, rgba(34,211,238,0.08), transparent 40%),
+				radial-gradient(120% 120% at 80% 0%, rgba(52,211,153,0.08), transparent 45%),
+				#0b1224;
+			color: #e5e7eb;
+			min-height: 100vh;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+		}
+		.cookie-container {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			width: 100%;
+			height: 100%;
+		}
+		.cookie-image {
+			width: min(360px, 70vw);
+			height: auto;
+			cursor: pointer;
+			user-select: none;
+			transition: transform 120ms ease;
+		}
+		.cookie-image:active { transform: scale(0.98); }
+		.cookie-image.bite { animation: bite 180ms ease-in-out; }
+		.cookie-image.hidden { display: none; }
+		.message {
+			font-size: clamp(18px, 3vw, 28px);
+			font-weight: 600;
+			color: #e5e7eb;
+			text-align: center;
+			cursor: pointer;
+			user-select: none;
+		}
+		.message.hidden { display: none; }
+		@keyframes bite {
+			0% { transform: scale(1); }
+			50% { transform: scale(0.92) rotate(-2deg); }
+			100% { transform: scale(1); }
+		}
+	</style>
+</head>
+<body>
+	<div class="cookie-container" id="cookieContainer">
+		<div id="startMessage" class="message">You have done well, have a cookie &lt;3</div>
+		<div id="doneMessage" class="message hidden">
+			<div id="personalCount"></div>
+			<div id="globalCount" style="font-size: 0.75em; color: var(--muted); margin-top: 8px;"></div>
+		</div>
+		<img
+			id="cookieImage"
+			class="cookie-image hidden"
+			src="coockie-4_4.png"
+			alt="Cookie"
+			aria-live="polite"
+		>
+	</div>
+
+	<script type="module">
+		import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+		import { getFirestore, doc, getDoc, setDoc, onSnapshot, increment } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+		import { firebaseConfig } from '../firebase-config.js';
+
+		// Initialize Firebase
+		let app, db;
+		let useLocalStorage = false;
+		let globalCookieCount = 0;
+
+		try {
+			app = initializeApp(firebaseConfig);
+			db = getFirestore(app);
+		} catch (error) {
+			console.warn('Firebase initialization failed. Falling back to localStorage:', error);
+			useLocalStorage = true;
+		}
+
+		const STORAGE_KEY = 'cookie-personal-count';
+		const FIRESTORE_COLLECTION = 'cookie';
+		const FIRESTORE_DOC = 'cookie';
+
+		// Load personal count
+		const loadPersonalCount = () => {
+			const stored = localStorage.getItem(STORAGE_KEY);
+			return stored ? parseInt(stored) : 0;
+		};
+
+		// Save personal count
+		const savePersonalCount = (count) => {
+			localStorage.setItem(STORAGE_KEY, count.toString());
+		};
+
+		// Update global count in Firebase
+		const updateGlobalCount = async () => {
+			if (!useLocalStorage && db) {
+				try {
+					const docRef = doc(db, FIRESTORE_COLLECTION, FIRESTORE_DOC);
+					await setDoc(docRef, { 'cookie-total': increment(1) }, { merge: true });
+				} catch (err) {
+					console.error('Failed to update global count:', err);
+				}
+			}
+		};
+
+		// Listen to global count updates
+		const setupGlobalCountListener = () => {
+			if (!useLocalStorage && db) {
+				const docRef = doc(db, FIRESTORE_COLLECTION, FIRESTORE_DOC);
+				onSnapshot(docRef, (docSnap) => {
+					if (docSnap.exists()) {
+						globalCookieCount = docSnap.data()['cookie-total'] || 0;
+						updateDoneMessage();
+					}
+				}, (error) => {
+					console.error('Error listening to global count:', error);
+				});
+			}
+		};
+
+		// Initialize global count
+		const initGlobalCount = async () => {
+			if (!useLocalStorage && db) {
+				try {
+					const docRef = doc(db, FIRESTORE_COLLECTION, FIRESTORE_DOC);
+					const docSnap = await getDoc(docRef);
+					if (docSnap.exists()) {
+						globalCookieCount = docSnap.data()['cookie-total'] || 0;
+					} else {
+						await setDoc(docRef, { 'cookie-total': 0 });
+						globalCookieCount = 0;
+					}
+					setupGlobalCountListener();
+				} catch (err) {
+					console.error('Failed to initialize global count:', err);
+				}
+			}
+		};
+
+		initGlobalCount();
+
+		const stages = [
+			'coockie-4_4.png',
+			'coockie-3_4.png',
+			'coockie-2_3.png',
+			'coockie-1_4.png',
+			null
+		];
+
+		const img = document.getElementById('cookieImage');
+		const container = document.getElementById('cookieContainer');
+		const startMessage = document.getElementById('startMessage');
+		const doneMessage = document.getElementById('doneMessage');
+		const personalCountEl = document.getElementById('personalCount');
+		const globalCountEl = document.getElementById('globalCount');
+		let index = 0;
+		let animating = false;
+		let cookieCount = loadPersonalCount();
+
+		const updateDoneMessage = () => {
+			personalCountEl.textContent = `You have had ${cookieCount} coockie`;
+			globalCountEl.textContent = `Global: ${globalCookieCount} cookies eaten`;
+		};
+
+		const showCookie = () => {
+			startMessage.classList.add('hidden');
+			doneMessage.classList.add('hidden');
+			img.classList.remove('hidden');
+			img.setAttribute('aria-hidden', 'false');
+			setStage(index);
+		};
+
+		const showStartMessage = () => {
+			img.classList.add('hidden');
+			img.setAttribute('aria-hidden', 'true');
+			doneMessage.classList.add('hidden');
+			startMessage.classList.remove('hidden');
+		};
+
+		const showDoneMessage = () => {
+			img.classList.add('hidden');
+			img.setAttribute('aria-hidden', 'true');
+			startMessage.classList.add('hidden');
+			updateDoneMessage();
+			doneMessage.classList.remove('hidden');
+		};
+
+		const setStage = (nextIndex) => {
+			index = nextIndex;
+			const src = stages[index];
+			if (!src) {
+				cookieCount += 1;
+				savePersonalCount(cookieCount);
+				updateGlobalCount();
+				showDoneMessage();
+				return;
+			}
+			img.src = src;
+		};
+
+		const handleClick = (event) => {
+			event.stopPropagation();
+			if (animating) return;
+			if (stages[index] === null) {
+				setStage(0);
+				return;
+			}
+			animating = true;
+			img.classList.add('bite');
+			setTimeout(() => {
+				img.classList.remove('bite');
+				setStage(index + 1);
+				animating = false;
+			}, 180);
+		};
+
+		img.addEventListener('click', handleClick);
+		startMessage.addEventListener('click', () => {
+			index = 0;
+			showCookie();
+		});
+		doneMessage.addEventListener('click', () => {
+			index = 0;
+			showCookie();
+		});
+
+		showStartMessage();
+	</script>
+</body>
+</html>
